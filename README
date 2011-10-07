@@ -1,0 +1,12 @@
+This is my attempt at a "toy" global climate model.  It is still far from 
+complete.  Feel free to use it however you want, but be warned this is still 
+"alpha" quality code as of October, 2011.  I will not be liable for any 
+mental or other harm that may come to you from looking at or using this code.
+
+Presently, the following software libraries must be installed to compile:
+- NETCDF dev
+- FFTW (Fastest Fourier Transform in the West) V3 (not presently being called)
+
+Frank Kienast
+October 7, 2011
+
