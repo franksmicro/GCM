@@ -107,9 +107,11 @@ int init_netcdf()
 	if ((retval = nc_def_var(ncid, TEMP_NAME, NC_FLOAT, NDIMS,
 		dimids, &temp_varid)))
 		ERR(retval);
+	/*
 	if ((retval = nc_def_var(ncid, THETA_NAME, NC_FLOAT, NDIMS,
 		dimids, &theta_varid)))
 		ERR(retval);
+	*/
 	if ((retval = nc_def_var(ncid, U_NAME, NC_FLOAT, NDIMS,
 		dimids, &u_varid)))
 		ERR(retval);
@@ -119,9 +121,11 @@ int init_netcdf()
 	if ((retval = nc_def_var(ncid, X_NAME, NC_FLOAT, NDIMS,
 		dimids, &x_varid)))
 		ERR(retval);
+	/*
 	if ((retval = nc_def_var(ncid, A_NAME, NC_FLOAT, NDIMS,
 		dimids, &a_varid)))
 		ERR(retval);
+	*/
 	if ((retval = nc_def_var(ncid, W_NAME, NC_FLOAT, NDIMS,
 		dimids, &w_varid)))
 		ERR(retval);
@@ -133,9 +137,11 @@ int init_netcdf()
 	if ((retval = nc_put_att_text(ncid, temp_varid, UNITS,
 		strlen(TEMP_UNITS), TEMP_UNITS)))
 		ERR(retval);
+	/*
 	if ((retval = nc_put_att_text(ncid, temp_varid, UNITS,
 		strlen(THETA_UNITS), THETA_UNITS)))
 		ERR(retval);
+	*/
 	if ((retval = nc_put_att_text(ncid, u_varid, UNITS,
 		strlen(U_UNITS), U_UNITS)))
 		ERR(retval);
@@ -145,9 +151,11 @@ int init_netcdf()
 	if ((retval = nc_put_att_text(ncid, x_varid, UNITS,
 		strlen(X_UNITS), X_UNITS)))
 		ERR(retval);
+	/*
 	if ((retval = nc_put_att_text(ncid, a_varid, UNITS,
 		strlen(A_UNITS), A_UNITS)))
 		ERR(retval);
+	*/
 	if ((retval = nc_put_att_text(ncid, w_varid, UNITS,
 		strlen(W_UNITS), W_UNITS)))
 		ERR(retval);
@@ -205,6 +213,7 @@ int write_temperature(int recno,double dvals[NLVL][NLAT][NLON])
 
 }
 
+/*
 int write_theta(int recno,double dvals[NLVL][NLAT][NLON])
 {
 	int lvl,lat,lon;
@@ -217,6 +226,7 @@ int write_theta(int recno,double dvals[NLVL][NLAT][NLON])
 	return nc_put_vara_float(ncid, theta_varid, start, count, &fvals[0][0][0]);
 
 }
+*/
 
 int write_u(int recno,double dvals[NLVL][NLAT][NLON])
 {
@@ -254,6 +264,7 @@ int write_x(int recno,double dvals[NLVL][NLAT][NLON])
 	return nc_put_vara_float(ncid, x_varid, start, count, &fvals[0][0][0]);
 }
 
+/*
 int write_a(int recno,double dvals[NLVL][NLAT][NLON])
 {
 	int lvl,lat,lon;
@@ -265,6 +276,7 @@ int write_a(int recno,double dvals[NLVL][NLAT][NLON])
 	start[0] = recno;
 	return nc_put_vara_float(ncid, a_varid, start, count, &fvals[0][0][0]);
 }
+*/
 
 int write_w(int recno,double dvals[NLVL][NLAT][NLON])
 {

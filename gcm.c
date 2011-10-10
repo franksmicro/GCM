@@ -81,6 +81,7 @@ int main(int argc, char *argv[])
 		calcTheta();
 		calcU();
 		calcV();
+		calcX();
 		calcW();
 		calcT(t);
 		//calcEarth();
@@ -218,14 +219,18 @@ int writeResults(long t)
 		ERR("write_temperature");
 	if(write_u(t,U))
 		ERR("write_u");
+	/*
 	if(write_theta(t,Theta))
 		ERR("write_theta");
+	*/
 	if(write_v(t,V))
 		ERR("write_v");
 	if(write_x(t,X))
 		ERR("write_x");
+	/*
 	if(write_a(t,A))
 		ERR("write_a");
+	*/
 	if(write_w(t,W))
 		ERR("write_w");
 }	
@@ -687,13 +692,10 @@ void calcU()
 			UNext[lev][lat][lon] * UNext[lev][lat][lon] * dt;
 		*/
 		//UNext[lev][lat][lon] -= a * UNext[lev][lat][lon];
-		//Enforce zero velocity at poles and equator
-		/*
+		//Enforce zero velocity at poles
 		if(abs(latitude + 90.) < 5. 
-		|| abs(latitude - 90.) < 5.
-		|| abs(latitude) < 5.)
+		|| abs(latitude - 90.) < 5.)
 			UNext[lev][lat][lon] = 0;
-		*/
 	} 
 	//FFTFilter(UNext);
 
@@ -730,13 +732,10 @@ void calcV()
 		*/
 		//VNext[lev][lat][lon] -= a * VNext[lev][lat][lon];
 
-		//Enforce zero velocity at poles and equator
-		/*
+		//Enforce zero velocity at poles
 		if(abs(latitude + 90.) < 5. 
-		|| abs(latitude - 90.) < 5.
-		|| abs(latitude) < 5.)
+		|| abs(latitude - 90.) < 5.)
 			VNext[lev][lat][lon] = 0;
-		*/
 	}
 
 	//FFTFilter(VNext);
@@ -769,38 +768,26 @@ void calcTheta()
 	}
 }
 
-/*
 void calcX(int lev, int lat, int lon)
 {
 	// Vorticity calculation 
 
-	int lonprev, lonnext;
 	double dvdx, dudy;
 
-	double latinc = 180. / NLAT;
-	double latitude = -90. + latinc * lat + latinc / 2.;
-	double dx = 40E6 * cos(latitude * PI / 180) / NLON;
-	double dy = 20E6 / NLAT;
+	for(lev = 0; lev < NLVL; lev++)
+	for(lat = 1; lat < (NLAT-1); lat++) //Don't calc at poles
+	for(lon = 0; lon < NLON; lon++)
+	{
+		dvdx = (CalcDfDx(lev,lat,lon,VNext,1) +
+			CalcDfDx(lev,lat,lon,VNext,-1)) / 2.;
+		dudy = (CalcDfDy(lev,lat,lon,UNext,1) +
+			CalcDfDy(lev,lat,lon,UNext,-1)) / 2.;
 
-	lonprev = lon - 1; if(lonprev < 0) lonprev += NLON;
-	lonnext = lon + 1; if(lonnext >= NLON) lonnext -= NLON;
-
-	dvdx = (VNext[lev][lat][lonnext] - VNext[lev][lat][lonprev]) 
-	/ (2. * dx);
-
-	if(lat == 0)
-		dudy = (UNext[lev][lat+1][lon] - UNext[lev][lat][lon]) 
-		/ (2. * dy);
-	else if(lat == (NLAT-1))
-		dudy = (UNext[lev][lat][lon] - UNext[lev][lat-1][lon]) 
-		/ (2. * dy);
-	else
-		dudy = (UNext[lev][lat+1][lon] - UNext[lev][lat-1][lon]) 
-		/ (2. * dy);
-
-	XNext[lev][lat][lon] = dvdx - dudy;
+		XNext[lev][lat][lon] = dvdx - dudy;
+	}
 }
 	
+/*
 void calcA(int lev, int lat, int lon)
 {
 	//Vorticity advection
