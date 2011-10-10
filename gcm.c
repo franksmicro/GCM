@@ -83,7 +83,7 @@ int main(int argc, char *argv[])
 		calcV();
 		calcW();
 		calcT(t);
-		calcEarth();
+		//calcEarth();
 
 		for(lev = 0; lev < NLVL; lev++)
 		for(lat = 0; lat < NLAT; lat++)
@@ -136,34 +136,34 @@ void initVars()
 				switch(lev)
 				{
 					case 0: 
-						T[lev][lat][lon] = 295.19;
+						T[lev][lat][lon] = 270;
 						break;
 					case 1:
-						T[lev][lat][lon] = 291.35;
+						T[lev][lat][lon] = 250;
 						break;
 					case 2:
-						T[lev][lat][lon] = 280.04;
+						T[lev][lat][lon] = 240;
 						break;
 					case 3:
-						T[lev][lat][lon] = 268.89;
+						T[lev][lat][lon] = 230;
 						break;
 					case 4:
-						T[lev][lat][lon] = 256.07;
+						T[lev][lat][lon] = 220;
 						break;
 					case 5:
-						T[lev][lat][lon] = 241.76;
+						T[lev][lat][lon] = 210;
 						break;
 					case 6:
-						T[lev][lat][lon] = 223.98;
+						T[lev][lat][lon] = 200;
 						break;
 					case 7:
-						T[lev][lat][lon] = 202.89;
+						T[lev][lat][lon] = 190;
 						break;
 					case 8:
-						T[lev][lat][lon] = 174.00;
+						T[lev][lat][lon] = 180;
 						break;
 					case 9:
-						T[lev][lat][lon] = 72.00;
+						T[lev][lat][lon] = 160;
 						break;
 				}
 				TPrev[lev][lat][lon] = T[lev][lat][lon];
@@ -235,6 +235,7 @@ void doRadiation(long t)
 	int lev = 0;
 	int lat, lon;
 	double dt = TIME_DT;
+	void GrayAtmosphere();
 
 	long daylen = 86400 / TIME_DT;
 	double degpert = 360. / daylen;
@@ -262,11 +263,16 @@ void doRadiation(long t)
 		double longitude = loninc * lon + loninc / 2.;
 		double latitude = -90. + latinc * lat + latinc / 2.;
 
+		/*
 		c = 1010 * 1000; // Joules per cubic meter * thickness of layer
 
 		TNext[lev][lat][lon] = T[lev][lat][lon] +  dt * 
 		(calcRadIn(t,latitude,longitude,sunlatitude,sunlongitude) -
 		calcRadOut(T[lev][lat][lon])) / c;
+		*/
+		double sunmagnitude = calcRadIn(t,latitude,longitude,
+					sunlatitude,sunlongitude);
+		GrayAtmosphere(lat,lon,sunmagnitude);
 	}
 	
 }
@@ -294,11 +300,71 @@ double calcRadIn(long t,double latitude, double longitude, double sunlatitude, d
 	return radIn;
 }
 	
+/*
 double calcRadOut(double T)
 {
 	//Radiation out in Watts
 		
 	return 5.67E-8 * T * T * T * T;
+}
+*/
+
+void GrayAtmosphere(int lat, int lon, double sunmag)
+{
+	double tau = 1.8;
+	double albedo = 0.7;
+	double sigma = 5.67E-8;	
+	double g = 9.82;
+	double csurf = 1E6;
+	double cp = 710;
+	double p0 = 100000;
+
+	double fu[NLVL+1]; //Upward flux
+	double fd[NLVL+1]; //Downward flux
+	double fudep[NLVL]; //Deposited upward flux
+	double fddep[NLVL]; //Deposited downward flux
+	double ftdep[NLVL]; //Deposited total flux
+
+	int lev;
+	double T1;
+
+	T1 = T[0][lat][lon];
+	fu[0] = sigma * (1-albedo) * T1 * T1 * T1 * T1;
+
+	for(lev = 1; lev < NLVL+1; lev++)
+	{
+		T1 = T[lev-1][lat][lon];
+		fu[lev] = fu[lev-1] + 
+		(-0.5 * fu[lev-1] + sigma * T1 * T1 * T1 * T1 * (tau/NLVL)) / 
+		(1 + 0.5 * tau/NLVL);
+		
+		fudep[lev-1] = fu[lev-1] - fu[lev];
+	}
+
+	for(lev = (NLVL-1); lev >= 0; lev--)
+	{
+		T1 = T[lev][lat][lon];
+		fd[lev] = fd[lev+1] +
+		(-0.5 * fd[lev+1] + sigma * T1 * T1 * T1 * T1 * (tau/NLVL)) /
+		(1 + 0.5 * tau/NLVL);
+		
+		fddep[lev] = fd[lev+1] - fd[lev];
+	}
+
+	T1 = T[0][lat][lon];
+	double fsurf = fd[0] + sunmag - sigma * T1 * T1 * T1 * T1;
+	TNext[0][lat][lon] = T[0][lat][lon] + TIME_DT * fsurf / csurf;
+
+	for(lev = 1; lev < NLVL; lev++)
+	{
+		/*
+		printf("lev=%d,lat=%d,lon=%d,fudep=%f,fddep=%f\n",
+			lev,lat,lon,fudep[lev],fddep[lev]);
+		*/
+		double ftot = fudep[lev] + fddep[lev];
+		TNext[lev][lat][lon] = T[lev][lat][lon] 
+		+ TIME_DT * ftot * g * NLVL / (cp * p0);
+	}
 }
 	
 void calcHeights()
@@ -616,14 +682,18 @@ void calcU()
 		UNext[lev][lat][lon] += f * V[lev][lat][lon] * dt;
 		UNext[lev][lat][lon] -= g * 
 		CalcDfDx(lev,lat,lon,Z,sign(UNext[lev][lat][lon])) * dt;
+		/*
 		UNext[lev][lat][lon] -= a * sign(UNext[lev][lat][lon]) *
 			UNext[lev][lat][lon] * UNext[lev][lat][lon] * dt;
+		*/
 		//UNext[lev][lat][lon] -= a * UNext[lev][lat][lon];
 		//Enforce zero velocity at poles and equator
+		/*
 		if(abs(latitude + 90.) < 5. 
 		|| abs(latitude - 90.) < 5.
 		|| abs(latitude) < 5.)
 			UNext[lev][lat][lon] = 0;
+		*/
 	} 
 	//FFTFilter(UNext);
 
@@ -654,15 +724,19 @@ void calcV()
 		VNext[lev][lat][lon] -= f * U[lev][lat][lon] * dt;
 		VNext[lev][lat][lon] -= g * 
 		CalcDfDy(lev,lat,lon,Z,sign(VNext[lev][lat][lon])) * dt;
+		/*
 		VNext[lev][lat][lon] -= a * sign(VNext[lev][lat][lon]) *
 			VNext[lev][lat][lon] * VNext[lev][lat][lon] * dt;
+		*/
 		//VNext[lev][lat][lon] -= a * VNext[lev][lat][lon];
 
 		//Enforce zero velocity at poles and equator
+		/*
 		if(abs(latitude + 90.) < 5. 
 		|| abs(latitude - 90.) < 5.
 		|| abs(latitude) < 5.)
 			VNext[lev][lat][lon] = 0;
+		*/
 	}
 
 	//FFTFilter(VNext);
@@ -790,14 +864,14 @@ void calcT(int iteration)
 	for(lon = 0; lon < NLON; lon++)
 	{
 		TNext[lev][lat][lon] 
-		-= CalcDfDz(lev,lat,lon,ThetaNext,Z,sign(W[lev][lat][lon])) 
+		-= CalcDfDz(lev,lat,lon,TNext,Z,sign(W[lev][lat][lon])) 
 		* W[lev][lat][lon];
-		//Not needed if already using theta?
-		//TNext[lev][lat][lon]  
-		//-= W[lev][lat][lon] * 10. / 1000 * dt; //10K per km
+		TNext[lev][lat][lon]  
+		-= W[lev][lat][lon] * 10. / 1000 * dt; //10K per km
 		
 		//Assume some sort of mixing or radiative transfer between
 		//levels with time constant close to 2 day between levels
+		/*
 		double alpha = dt / 172800.;
 		double deltat;
 		if(lev == 0)
@@ -814,6 +888,7 @@ void calcT(int iteration)
 			- ThetaNext[lev][lat][lon])) / 2.;
 		if(iteration > 5)
 			TNext[lev][lat][lon] += alpha * deltat;
+		*/
 	}
 }
 
