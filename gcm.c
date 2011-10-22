@@ -55,6 +55,7 @@ int main(int argc, char *argv[])
 	int lev,lon,lat;
 
 	void initVars();
+	
 	void doRadiation();
 	void calcHeights();
 	void AdvectX();
@@ -63,6 +64,8 @@ int main(int argc, char *argv[])
 	void calcX();
 	void calcA();
 	void calcW();
+	void calcW_Buoyancy();
+	void calcW_Continuity();
 	void calcT();
 	void calcTheta();
 	void calcEarth();
@@ -84,7 +87,7 @@ int main(int argc, char *argv[])
 		calcX();
 		calcW();
 		calcT(t);
-		//calcEarth();
+		calcEarth();
 
 		for(lev = 0; lev < NLVL; lev++)
 		for(lat = 0; lat < NLAT; lat++)
@@ -825,6 +828,95 @@ void calcW()
 	}
 }
 
+void calcW_Continuity(int lev, int lat, int lon)
+{
+	double dt = TIME_DT; //Seconds
+	int lonprev,lonnext;
+	double dx,dy,dz,dw,dudx,dvdy,dwdz;
+	double sidearea, frontarea, toparea;
+
+	double latinc = 180. / NLAT;
+	double loninc = 360. / NLON;
+	double longitude = loninc * lon + loninc / 2.;
+	double latitude = -90. + latinc * lat + latinc / 2.;
+
+	dx = 591000 * cos(latitude * PI / 180);	//Width of a grid square in meters
+	dy = 591000 ;
+
+	if(lev == 0)
+		dz = Z[lev][lat][lon];
+	else
+		dz = Z[lev][lat][lon] - Z[lev-1][lat][lon];
+
+	lonprev = lon - 1; if(lonprev < 0) lonprev = lonprev += NLON;
+	lonnext = lon + 1; if(lonnext > (NLON-1)) lonnext -= NLON;
+	dudx = (U[lev][lat][lonnext] - U[lev][lat][lonprev]) / (2. * dx);
+	if(lat == 0 || lat == (NLAT-1))
+		dvdy = 0;
+	else 
+		dvdy = (V[lev][lat+1][lon] - V[lev][lat-1][lon]) / (2. * dy);
+
+	sidearea = dy * dz;
+	frontarea = dx * dz;	
+	toparea = dx * dy;
+	dwdz = -1. * (dudx * sidearea + dvdy * frontarea) / toparea;
+
+	if(lev == 0)
+	{
+		dw = dwdz * Z[lev][lat][lon];
+		WNext[lev][lat][lon] = dw;
+	}
+	else
+	{
+		dw = dwdz * (Z[lev][lat][lon] - Z[lev-1][lat][lon]);
+		WNext[lev][lat][lon] = W[lev-1][lat][lon] + dw;
+	}
+}
+
+void calcW_Buoyancy(int lev, int lat, int lon)
+{
+	double g = 9.80;	
+	int tt;
+	double dt = 1;
+
+	//We use dt of 1 second here since using density allows sound waves
+	for(tt = 0; tt < TIME_DT; tt++)
+	for(lev = 0; lev < NLVL; lev++)
+	for(lat = 0; lat < NLAT; lat++)
+	for(lon = 0; lon < NLON; lon++)
+	{
+		double tlat, tlon, tenv, tpar, dwdt, dw;
+		int lonprev, lonnext;
+
+		if(lat == 0)
+			tlat = T[lev][lat+1][lon];
+		else if(lat == (NLAT-1))
+			tlat = T[lev][lat-1][lon];
+		else
+			tlat = (T[lev][lat-1][lon] + T[lev][lat+1][lon]) / 2.;
+
+		lonprev = lon - 1; if(lonprev < 0) lonprev += NLON;
+		lonnext = lon + 1; if(lonnext > (NLON-1)) lonnext -= NLON;
+		tlon = (T[lev][lat][lonprev] + T[lev][lat][lonnext]) / 2.;
+
+		tenv = (tlat + tlon) / 2.;
+		tpar = T[lev][lat][lon];
+
+		dwdt = g * (tpar - tenv) / tpar;
+		dw = dwdt * dt;
+
+		//TODO: Include W advection by U and V
+		WNext[lev][lat][lon] = W[lev][lat][lon] + dw;
+		//Limit to 20cm/s velocity
+		if(WNext[lev][lat][lon] > 0.20) 
+			WNext[lev][lat][lon] = 0.20;
+		if(WNext[lev][lat][lon] < -0.20)
+			WNext[lev][lat][lon] = -0.20;
+
+		W[lev][lat][lon] = WNext[lev][lat][lon];
+	}
+}
+
 void calcT(int iteration)
 {
 	int lev,lat,lon;
@@ -851,8 +943,8 @@ void calcT(int iteration)
 	for(lon = 0; lon < NLON; lon++)
 	{
 		TNext[lev][lat][lon] 
-		-= CalcDfDz(lev,lat,lon,TNext,Z,sign(W[lev][lat][lon])) 
-		* W[lev][lat][lon];
+		-= CalcDfDz(lev,lat,lon,T,Z,sign(W[lev][lat][lon])) 
+		* W[lev][lat][lon] * dt;
 		TNext[lev][lat][lon]  
 		-= W[lev][lat][lon] * 10. / 1000 * dt; //10K per km
 		
