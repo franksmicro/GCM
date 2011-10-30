@@ -8,10 +8,10 @@
 
 /* Size of each dim */
 #define START_TIME 0
-#define TIME_STRIDE 1440
-#define NTIME 144000
+#define TIME_STRIDE 60
+#define NTIME 6000
 #define TIME_NAME "time"
-#define TIME_UNITS "days"
+#define TIME_UNITS "hours"
 #define TIME_DT 60
 
 #define NLVL 10

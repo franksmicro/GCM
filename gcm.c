@@ -423,7 +423,9 @@ double CalcDfDx(int lev, int lat, int lon, double var[NLVL][NLAT][NLON],
 	int lonnext = lon + 1; if(lonnext >= NLON) lonnext -= NLON;
 
 	
-	if(sign > 0)
+	if(sign == 0)
+		df = (var[lev][lat][lonnext] - var[lev][lat][lonprev]) / 2.;
+	else if(sign > 0)
 		df = var[lev][lat][lon] - var[lev][lat][lonprev];
 	else
 		df = var[lev][lat][lonnext] - var[lev][lat][lon];
@@ -438,7 +440,14 @@ double CalcDfDy(int lev, int lat, int lon, double var[NLVL][NLAT][NLON],
 	double dy = 20E6 / NLAT;
 	double df;
 
-	if(sign > 0)
+	if(sign == 0)
+	{
+		if(lat == 0 || lat == (NLAT-1))
+			df = 0;
+		else
+			df = (var[lev][lat+1][lon] - var[lev][lat-1][lon]) / 2.;
+	}
+	else if(sign > 0)
 	{
 		if(lat == 0)
 			df = 0;
@@ -468,7 +477,14 @@ double CalcDfDz(int lev, int lat, int lon,
 	else
 		dz = zvar[lev][lat][lon] - zvar[lev-1][lat][lon];
 
-	if(sign > 0)
+	if(sign == 0)
+	{
+		if(lev == 0 || lev == (NLVL-1))
+			df = 0;
+		else
+			df = (var[lev+1][lat][lon] - var[lev-1][lat][lon]) / 2.;
+	}
+	else if(sign > 0)
 	{
 		if(lev == 0)
 			df = 0;
@@ -690,11 +706,6 @@ void calcU()
 		UNext[lev][lat][lon] += f * V[lev][lat][lon] * dt;
 		UNext[lev][lat][lon] -= g * 
 		CalcDfDx(lev,lat,lon,Z,sign(UNext[lev][lat][lon])) * dt;
-		/*
-		UNext[lev][lat][lon] -= a * sign(UNext[lev][lat][lon]) *
-			UNext[lev][lat][lon] * UNext[lev][lat][lon] * dt;
-		*/
-		//UNext[lev][lat][lon] -= a * UNext[lev][lat][lon];
 		//Enforce zero velocity at poles
 		if(abs(latitude + 90.) < 5. 
 		|| abs(latitude - 90.) < 5.)
@@ -781,10 +792,8 @@ void calcX(int lev, int lat, int lon)
 	for(lat = 1; lat < (NLAT-1); lat++) //Don't calc at poles
 	for(lon = 0; lon < NLON; lon++)
 	{
-		dvdx = (CalcDfDx(lev,lat,lon,VNext,1) +
-			CalcDfDx(lev,lat,lon,VNext,-1)) / 2.;
-		dudy = (CalcDfDy(lev,lat,lon,UNext,1) +
-			CalcDfDy(lev,lat,lon,UNext,-1)) / 2.;
+		dvdx = CalcDfDx(lev,lat,lon,VNext,0);
+		dudy = CalcDfDy(lev,lat,lon,UNext,0);
 
 		XNext[lev][lat][lon] = dvdx - dudy;
 	}
@@ -828,48 +837,35 @@ void calcW()
 	}
 }
 
-void calcW_Continuity(int lev, int lat, int lon)
+void calcW_Continuity()
 {
 	double dt = TIME_DT; //Seconds
-	int lonprev,lonnext;
-	double dx,dy,dz,dw,dudx,dvdy,dwdz;
-	double sidearea, frontarea, toparea;
+	int lev,lat,lon;
+	double dudx,dvdy,domegadz,domega;
+	double WX[NLVL][NLAT][NLON],WY[NLVL][NLAT][NLON];
 
-	double latinc = 180. / NLAT;
-	double loninc = 360. / NLON;
-	double longitude = loninc * lon + loninc / 2.;
-	double latitude = -90. + latinc * lat + latinc / 2.;
+	AdvectX(W,U,WX); 
+	AdvectY(WX,V,WY);
+	AdvectZ(WY,W,WNext);
 
-	dx = 591000 * cos(latitude * PI / 180);	//Width of a grid square in meters
-	dy = 591000 ;
-
-	if(lev == 0)
-		dz = Z[lev][lat][lon];
-	else
-		dz = Z[lev][lat][lon] - Z[lev-1][lat][lon];
-
-	lonprev = lon - 1; if(lonprev < 0) lonprev = lonprev += NLON;
-	lonnext = lon + 1; if(lonnext > (NLON-1)) lonnext -= NLON;
-	dudx = (U[lev][lat][lonnext] - U[lev][lat][lonprev]) / (2. * dx);
-	if(lat == 0 || lat == (NLAT-1))
-		dvdy = 0;
-	else 
-		dvdy = (V[lev][lat+1][lon] - V[lev][lat-1][lon]) / (2. * dy);
-
-	sidearea = dy * dz;
-	frontarea = dx * dz;	
-	toparea = dx * dy;
-	dwdz = -1. * (dudx * sidearea + dvdy * frontarea) / toparea;
-
-	if(lev == 0)
+	for(lev = 0; lev < NLVL; lev++)
+	for(lat = 0; lat < NLAT; lat++)
+	for(lon = 0; lon < NLON; lon++)
 	{
-		dw = dwdz * Z[lev][lat][lon];
-		WNext[lev][lat][lon] = dw;
-	}
-	else
-	{
-		dw = dwdz * (Z[lev][lat][lon] - Z[lev-1][lat][lon]);
-		WNext[lev][lat][lon] = W[lev-1][lat][lon] + dw;
+		if(lev == 0)
+		{
+			WNext[lev][lat][lon] = 0;
+		}
+		else
+		{
+			dudx = CalcDfDx(lev,lat,lon,U,0) 
+				- CalcDfDx(lev-1,lat,lon,U,0);
+			dvdy = CalcDfDy(lev,lat,lon,V,0)
+				- CalcDfDy(lev,lat,lon,V,0);
+		}
+		domegadz = - (dudx + dvdy);
+		domega = domegadz * (Z[lev][lat][lon] - Z[lev-1][lat][lon]);
+		WNext[lev][lat][lon] += domega * dt;
 	}
 }
 
